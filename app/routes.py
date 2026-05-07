@@ -224,7 +224,7 @@ def stream(type, id):
                 page_url = f"https://piratexplay.cc/episode/{ep_slug}"
                 streams = piratexplay.get_streams(page_url, MEDIAFLOW_URL, MEDIAFLOW_PASSWORD)
             elif source == "toonstream":
-                page_url = f"https://toonstream.day/{ep_slug}/"
+                page_url = f"https://toonstream.vip/episode/{ep_slug}/"
                 streams = toonstream.get_streams(page_url, MEDIAFLOW_URL, MEDIAFLOW_PASSWORD)
             elif source == "animelok":
                 page_url = f"https://animelok.com/{ep_slug}/"
@@ -235,7 +235,7 @@ def stream(type, id):
                 page_url = f"https://piratexplay.cc/series/{slug}"
                 streams = piratexplay.get_streams(page_url, MEDIAFLOW_URL, MEDIAFLOW_PASSWORD)
             elif source == "toonstream":
-                page_url = f"https://toonstream.day/{slug}/"
+                page_url = f"https://toonstream.vip/series/{slug}/"
                 streams = toonstream.get_streams(page_url, MEDIAFLOW_URL, MEDIAFLOW_PASSWORD)
             elif source == "animelok":
                 page_url = f"https://animelok.com/{slug}/"

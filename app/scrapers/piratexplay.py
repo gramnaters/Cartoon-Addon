@@ -29,45 +29,58 @@ def get_catalog(page=1, category="series"):
 
         r = requests.get(url, headers=HEADERS, timeout=15)
         
-        # Extract JSON data from page - look for arrays with tmdb data
-        # Try to find JSON data in script tags
         soup = BeautifulSoup(r.text, "html.parser")
-        scripts = soup.find_all("script")
         
-        for script in scripts:
-            text = script.string or ""
-            # Look for arrays containing tmdb data
-            json_matches = re.findall(r'\[(\{[^]]*"tmdb"[^]]*\})\]', text, re.DOTALL)
-            for json_str in json_matches:
-                try:
-                    import json
-                    # Try to parse as JSON array
-                    data = json.loads(f"[{json_str}]")
-                    if isinstance(data, list):
-                        for item in data:
-                            if isinstance(item, dict) and "tmdb" in item:
-                                tmdb = item["tmdb"]
-                                title = tmdb.get("title", "")
-                                slug = tmdb.get("url", "")
-                                poster_path = tmdb.get("poster", "")
-                                item_type = tmdb.get("type", "series")
-                                
-                                if not title or not slug:
-                                    continue
-                                
-                                poster = f"{TMDB_IMAGE_BASE}{poster_path}" if poster_path else ""
-                                stremio_id = f"piratexplay:{slug}"
-                                
-                                items.append({
-                                    "id": stremio_id,
-                                    "type": item_type,
-                                    "name": title,
-                                    "poster": poster,
-                                    "source": "piratexplay",
-                                    "url": f"{PIRATEXPLAY_URL}/series/{slug}",
-                                })
-                except Exception as e:
-                    logger.error(f"PirateXPlay parse error: {e}")
+        # Extract articles - using article tags as they contain the items
+        articles = soup.find_all("article")
+        
+        for article in articles:
+            try:
+                # Try to find the main link
+                link_el = article.select_one("a")
+                title_el = article.select_one("h2") or article.select_one("h3") or article.select_one(".title") or article.select_one("a")
+                img_el = article.select_one("img")
+                
+                if not link_el:
+                    continue
+                
+                link = link_el.get("href", "")
+                if "/series/" not in link and "/movies/" not in link:
+                    continue
+                
+                title = title_el.get_text(strip=True) if title_el else "Unknown"
+                if not title:
+                    title = link.rstrip("/").split("/")[-1]
+                
+                poster = ""
+                if img_el:
+                    poster = img_el.get("src") or img_el.get("data-src", "")
+                
+                # Determine item type
+                item_type = "series"
+                if "/movies/" in link:
+                    item_type = "movie"
+                
+                # Extract slug from URL
+                if "/series/" in link:
+                    slug = link.split("/series/")[-1].rstrip("/")
+                elif "/movies/" in link:
+                    slug = link.split("/movies/")[-1].rstrip("/")
+                else:
+                    continue
+                
+                stremio_id = f"piratexplay:{slug}"
+                
+                items.append({
+                    "id": stremio_id,
+                    "type": item_type,
+                    "name": title,
+                    "poster": poster,
+                    "source": "piratexplay",
+                    "url": link,
+                })
+            except Exception as e:
+                logger.error(f"PirateXPlay article parse error: {e}")
     except Exception as e:
         logger.error(f"PirateXPlay catalog error: {e}")
     return items

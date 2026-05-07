@@ -10,7 +10,7 @@ MEDIAFLOW_URL = os.environ.get("MEDIAFLOW_URL", "https://devonwhite1020-media-pr
 MEDIAFLOW_PASSWORD = os.environ.get("MEDIAFLOW_PASSWORD", "")
 
 PIRATEXPLAY_URL = "https://piratexplay.cc"
-TOONSTREAM_URL = "https://toonstream.day"
+TOONSTREAM_URL = "https://toonstream.vip"
 ANIMELOK_URL = "https://animelok.xyz"
 
 HEADERS = {
