@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import logging
 import re
-from .config import PIRATEXPLAY_URL, HEADERS
+from ..config import PIRATEXPLAY_URL, HEADERS
 
 logger = logging.getLogger(__name__)
 
