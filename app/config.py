@@ -11,7 +11,7 @@ MEDIAFLOW_PASSWORD = os.environ.get("MEDIAFLOW_PASSWORD", "")
 
 PIRATEXPLAY_URL = "https://piratexplay.cc"
 TOONSTREAM_URL = "https://toonstream.day"
-ANIMELOK_URL = "https://animelok.com"
+ANIMELOK_URL = "https://animelok.xyz"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
