@@ -121,8 +121,15 @@ def search(query):
 def get_episodes(slug):
     episodes = []
     try:
+        # First try series URL
         url = f"{TOONSTREAM_URL}/series/{slug}/"
         r = requests.get(url, headers=HEADERS, timeout=15)
+        
+        # If 404, try movies URL
+        if r.status_code == 404:
+            url = f"{TOONSTREAM_URL}/movies/{slug}/"
+            r = requests.get(url, headers=HEADERS, timeout=15)
+        
         soup = BeautifulSoup(r.text, "html.parser")
 
         # Find episode links: /episode/{slug}-{season}x{episode}/
@@ -161,15 +168,32 @@ def get_episodes(slug):
                 "url": ep_url,
             })
 
-        # If no episodes found, treat as movie
+        # If no episodes found, try to find iframes for movie stream
         if not episodes:
-            episodes.append({
-                "id": f"toonstream:{slug}:1",
-                "title": "Watch",
-                "season": 1,
-                "episode": 1,
-                "url": url,
-            })
+            iframes = soup.find_all("iframe")
+            if iframes:
+                # It's a movie with embed
+                for iframe in iframes[:3]:
+                    src = iframe.get("src", "")
+                    if src and src.startswith("http"):
+                        episodes.append({
+                            "id": f"toonstream:{slug}:embed",
+                            "title": "Watch Movie",
+                            "season": 1,
+                            "episode": 1,
+                            "url": src,
+                        })
+                        break
+            
+            # Last resort: return the page URL
+            if not episodes:
+                episodes.append({
+                    "id": f"toonstream:{slug}:1",
+                    "title": "Watch",
+                    "season": 1,
+                    "episode": 1,
+                    "url": url,
+                })
     except Exception as e:
         logger.error(f"ToonStream episodes error: {e}")
     return episodes
@@ -177,41 +201,78 @@ def get_episodes(slug):
 def get_streams(page_url, mediaflow_url="", mediaflow_password=""):
     streams = []
     try:
+        from html import unescape
         headers = {**HEADERS, "Referer": TOONSTREAM_URL}
         r = requests.get(page_url, headers=headers, timeout=15)
         
-        # Find embed links: ?trembed=X&trid=XXX&trtype=2
-        embed_links = re.findall(r'href="(\?trembed=\d+&trid=\d+&trtype=\d+)"', r.text)
+        # Decode HTML entities in the page (e.g., &#038; -> &)
+        page_text = unescape(r.text)
         
-        # Make them absolute URLs
-        base_url = page_url.split("?")[0]
+        # Find iframes that contain trembed - these are the embed pages
+        iframes = re.findall(r'<iframe[^>]*src="(https?://[^\s"\'<>]+)"', page_text, re.I)
         
-        for embed_param in embed_links[:4]:  # Try first 4 servers
-            embed_url = f"{base_url}{embed_param}"
+        # Also look for iframes with relative URLs containing trembed
+        rel_iframes = re.findall(r'<iframe[^>]*src="([^"]*trembed[^"]*)"', page_text, re.I)
+        
+        # Make absolute URLs from relative ones and decode HTML entities
+        for rel_src in rel_iframes:
+            rel_src = unescape(rel_src)  # Decode HTML entities
+            if rel_src.startswith("/"):
+                iframes.append(TOONSTREAM_URL + rel_src)
+            elif rel_src.startswith("?"):
+                iframes.append(TOONSTREAM_URL + "/" + rel_src)
+        
+        # Try each iframe
+        for iframe_url in iframes[:4]:
+            if not iframe_url or iframe_url.startswith("data:"):
+                continue
+                
+            logger.info(f"Testing ToonStream iframe: {iframe_url}")
             
-            # Fetch the embed page
             try:
-                embed_r = requests.get(embed_url, headers={**headers, "Referer": page_url}, timeout=10)
+                embed_r = requests.get(iframe_url, headers={**headers, "Referer": page_url}, 
+                                     timeout=10, allow_redirects=True)
                 
-                # Find the iframe src in the embed page
-                iframes = re.findall(r'<iframe[^>]*src="([^"]+)"', embed_r.text, re.I)
+                final_url = embed_r.url
                 
-                if iframes:
-                    stream_url = iframes[0]
-                    
-                    # If it's another embed, we try to resolve it or just return as-is
-                    # For now, return the direct embed URL
+                # Check if it's a direct stream
+                if final_url.endswith('.m3u8') or final_url.endswith('.mp4'):
                     streams.append({
                         "name": "ToonStream",
                         "title": "📺 ToonStream",
-                        "url": stream_url,
+                        "url": final_url,
                         "behaviorHints": {"notWebReady": False}
                     })
-                    
-                    if streams:  # Use first working server
+                    continue
+                
+                # Look for m3u8 in the embed page
+                m3u8_matches = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', embed_r.text)
+                if m3u8_matches:
+                    streams.append({
+                        "name": "ToonStream",
+                        "title": "📺 ToonStream HLS",
+                        "url": m3u8_matches[0],
+                        "behaviorHints": {"notWebReady": False}
+                    })
+                    continue
+                
+                # Look for nested iframes
+                nested_iframes = re.findall(r'<iframe[^>]*src="(https?://[^\s"\'<>]+)"', embed_r.text, re.I)
+                for n_if in nested_iframes[:2]:
+                    if n_if.startswith("http"):
+                        streams.append({
+                            "name": "ToonStream",
+                            "title": "📺 ToonStream Embed",
+                            "url": n_if,
+                            "behaviorHints": {"notWebReady": False}
+                        })
                         break
+                        
+                if streams:
+                    break
+                    
             except Exception as e:
-                logger.error(f"ToonStream embed error: {e}")
+                logger.error(f"ToonStream iframe error: {e}")
         
         # Fallback: look for direct video sources in scripts
         if not streams:

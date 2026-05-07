@@ -9,13 +9,17 @@ logger = logging.getLogger(__name__)
 
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 
-def _make_absolute(url):
+def _make_absolute(url, base=PIRATEXPLAY_URL):
     """Convert relative URL to absolute"""
+    if not url:
+        return ""
     if url.startswith("http"):
         return url
+    if url.startswith("//"):
+        return "https:" + url
     if url.startswith("/"):
-        return PIRATEXPLAY_URL + url
-    return PIRATEXPLAY_URL + "/" + url
+        return base + url
+    return base + "/" + url
 
 def get_catalog(page=1, category="series"):
     items = []
@@ -178,49 +182,92 @@ def get_streams(page_url, mediaflow_url="", mediaflow_password=""):
         headers = {**HEADERS, "Referer": PIRATEXPLAY_URL}
         r = requests.get(page_url, headers=headers, timeout=15)
         
-        # Find iframes (player URLs)
+        # Find iframes (player URLs) - check both src and data-src
         iframes = re.findall(r'<iframe[^>]*src=["\']([^"\']+)["\']', r.text)
         
         for iframe_url in iframes:
+            if not iframe_url or iframe_url.startswith("data:"):
+                continue
+                
             iframe_url = _make_absolute(iframe_url)
+            logger.info(f"Testing iframe: {iframe_url}")
             
-            # Get the player page
+            # Get the player page (allow redirects)
             try:
-                r2 = requests.get(iframe_url, headers={**headers, "Referer": page_url}, timeout=15)
+                r2 = requests.get(iframe_url, headers={**headers, "Referer": page_url}, 
+                                timeout=15, allow_redirects=True)
                 
-                # Extract server options with data-link
-                server_pattern = r'data-link=["\']([^"\']+)["\'].*?data-language=["\']([^"\']+)["\']'
-                servers = re.findall(server_pattern, r2.text, re.DOTALL)
+                # If it redirects to another URL, that's likely the stream
+                final_url = r2.url
+                logger.info(f"Iframe redirected to: {final_url}")
                 
-                for server_url, server_name in servers:
-                    # Try to extract video from each server
-                    video_url = _extract_from_server(server_url, iframe_url)
-                    if video_url:
-                        if mediaflow_url and mediaflow_password:
-                            video_url = _wrap_mediaflow(video_url, mediaflow_url, mediaflow_password, page_url)
+                # Check if it's a direct video URL
+                if final_url.endswith('.m3u8') or final_url.endswith('.mp4'):
+                    streams.append({
+                        "name": "PirateXPlay",
+                        "title": "🏴 PirateXPlay",
+                        "url": final_url,
+                        "behaviorHints": {"notWebReady": False}
+                    })
+                    continue
+                
+                # Look for m3u8 in the response
+                m3u8_matches = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', r2.text)
+                if m3u8_matches:
+                    streams.append({
+                        "name": "PirateXPlay",
+                        "title": "🏴 PirateXPlay HLS",
+                        "url": m3u8_matches[0],
+                        "behaviorHints": {"notWebReady": False}
+                    })
+                    continue
+                
+                # Extract from embedded player
+                embedded_iframes = re.findall(r'<iframe[^>]*src=["\']([^"\']+)["\']', r2.text, re.I)
+                for emb_if in embedded_iframes[:3]:
+                    emb_url = _make_absolute(emb_if, PIRATEXPLAY_URL)
+                    logger.info(f"Checking embedded: {emb_url}")
+                    
+                    r3 = requests.get(emb_url, headers={**headers, "Referer": iframe_url}, 
+                                    timeout=15, allow_redirects=True)
+                    
+                    if r3.url.endswith('.m3u8') or r3.url.endswith('.mp4'):
                         streams.append({
-                            "name": f"PirateXPlay ({server_name})",
-                            "title": f"🏴 {server_name}",
-                            "url": video_url,
+                            "name": "PirateXPlay",
+                            "title": "🏴 Embedded",
+                            "url": r3.url,
                             "behaviorHints": {"notWebReady": False}
                         })
-                        break  # Use first working server
+                        break
+                    
+                    m3u8_in_emb = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', r3.text)
+                    if m3u8_in_emb:
+                        streams.append({
+                            "name": "PirateXPlay",
+                            "title": "🏴 Embedded HLS",
+                            "url": m3u8_in_emb[0],
+                            "behaviorHints": {"notWebReady": False}
+                        })
+                        break
+                        
+                if streams:
+                    break
+                    
             except Exception as e:
                 logger.error(f"Player extraction error: {e}")
         
-        # Look for direct video sources in scripts (fallback)
-        scripts = re.findall(r'<script[^>]*>(.*?)</script>', r.text, re.DOTALL)
-        for script in scripts:
-            m3u8_matches = re.findall(r'["\']([^"\']*\.m3u8[^"\']*)["\']', script)
-            for m in m3u8_matches:
-                if mediaflow_url and mediaflow_password:
-                    m = _wrap_mediaflow(m, mediaflow_url, mediaflow_password, page_url)
-                streams.append({
-                    "name": "PirateXPlay",
-                    "title": "🏴 PirateXPlay HLS",
-                    "url": m,
-                    "behaviorHints": {"notWebReady": False}
-                })
+        # Fallback: look for direct video sources in scripts on original page
+        if not streams:
+            scripts = re.findall(r'<script[^>]*>(.*?)</script>', r.text, re.DOTALL)
+            for script in scripts:
+                m3u8_matches = re.findall(r'["\']([^"\']*\.m3u8[^"\']*)["\']', script)
+                for m in m3u8_matches:
+                    streams.append({
+                        "name": "PirateXPlay",
+                        "title": "🏴 PirateXPlay HLS",
+                        "url": m,
+                        "behaviorHints": {"notWebReady": False}
+                    })
     except Exception as e:
         logger.error(f"PirateXPlay stream error: {e}")
     return streams
