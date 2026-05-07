@@ -21,15 +21,15 @@ MANIFEST = {
     "idPrefixes": ["piratexplay:", "toonstream:", "animelok:"],
     "catalogs": [
         {
-            "id": "piratexplay_cartoons",
+            "id": "piratexplay_series",
             "type": "series",
-            "name": "🏴 PirateXPlay Cartoons",
+            "name": "🏴 PirateXPlay Series",
             "extra": [{"name": "search", "isRequired": False}, {"name": "skip"}],
         },
         {
-            "id": "piratexplay_anime",
-            "type": "series",
-            "name": "🏴 PirateXPlay Anime",
+            "id": "piratexplay_movies",
+            "type": "movie",
+            "name": "🏴 PirateXPlay Movies",
             "extra": [{"name": "search", "isRequired": False}, {"name": "skip"}],
         },
         {
@@ -149,10 +149,10 @@ def catalog(type, catalog_id, skip=0, search=None):
             else:
                 items = []
         else:
-            if catalog_id == "piratexplay_cartoons":
-                items = piratexplay.get_catalog(page=page, category="cartoon")
-            elif catalog_id == "piratexplay_anime":
-                items = piratexplay.get_catalog(page=page, category="anime")
+            if catalog_id == "piratexplay_series":
+                items = piratexplay.get_catalog(page=page, category="series")
+            elif catalog_id == "piratexplay_movies":
+                items = piratexplay.get_catalog(page=page, category="movie")
             elif catalog_id == "toonstream_cartoons":
                 items = toonstream.get_catalog(page=page, category="cartoon")
             elif catalog_id == "toonstream_anime":
@@ -221,7 +221,7 @@ def stream(type, id):
             slug = parts[1]
             ep_slug = parts[2]
             if source == "piratexplay":
-                page_url = f"https://piratexplay.com/{ep_slug}/"
+                page_url = f"https://piratexplay.cc/episode/{ep_slug}"
                 streams = piratexplay.get_streams(page_url, MEDIAFLOW_URL, MEDIAFLOW_PASSWORD)
             elif source == "toonstream":
                 page_url = f"https://toonstream.day/{ep_slug}/"
@@ -232,7 +232,7 @@ def stream(type, id):
         elif len(parts) == 2:
             slug = parts[1]
             if source == "piratexplay":
-                page_url = f"https://piratexplay.com/{slug}/"
+                page_url = f"https://piratexplay.cc/series/{slug}"
                 streams = piratexplay.get_streams(page_url, MEDIAFLOW_URL, MEDIAFLOW_PASSWORD)
             elif source == "toonstream":
                 page_url = f"https://toonstream.day/{slug}/"

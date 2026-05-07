@@ -9,7 +9,7 @@ TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
 MEDIAFLOW_URL = os.environ.get("MEDIAFLOW_URL", "https://devonwhite1020-media-proxy.hf.space")
 MEDIAFLOW_PASSWORD = os.environ.get("MEDIAFLOW_PASSWORD", "")
 
-PIRATEXPLAY_URL = "https://piratexplay.com"
+PIRATEXPLAY_URL = "https://piratexplay.cc"
 TOONSTREAM_URL = "https://toonstream.day"
 ANIMELOK_URL = "https://animelok.com"
 
