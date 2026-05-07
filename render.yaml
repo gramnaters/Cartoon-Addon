@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: cartoon-stremio-addon
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn_config.py run:app
+    envVars:
+      - key: TMDB_API_KEY
+        sync: false
+      - key: MEDIAFLOW_URL
+        value: https://devonwhite1020-media-proxy.hf.space
+      - key: MEDIAFLOW_PASSWORD
+        sync: false
